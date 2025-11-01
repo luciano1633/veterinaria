@@ -1,6 +1,5 @@
 package main
 
-import kotlin.system.exitProcess
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.DayOfWeek
@@ -8,9 +7,24 @@ import main.model.*
 
 // Simulación de agenda de veterinarios (puedes expandir con una clase Veterinario)
 val agendaVeterinarios = mutableMapOf<String, MutableList<String>>() // Fecha -> Lista de horas ocupadas
+val veterinarios = mutableListOf<Veterinario>()
+val consultas = mutableListOf<Consulta>()
+val agendaPorVeterinario = mutableMapOf<String, MutableList<Consulta>>()
+
+// Conjuntos para garantizar unicidad (Set): nombres y especialidades de veterinarios
+val nombresVeterinarios: MutableSet<String> = mutableSetOf()
+val especialidadesVeterinarios: MutableSet<String> = mutableSetOf()
 
 fun main() {
     println("Bienvenido al sistema de la veterinaria.")
+
+    // Inicializar algunos veterinarios de ejemplo (nombre, telefono, especialidad, email)
+    veterinarios.add(Veterinario("Dr. Gonzalez", "22220001", "General", "gonzalez@vet.com"))
+    veterinarios.add(Veterinario("Dra. Perez", "22220002", "Dermatologia", "perez@vet.com"))
+
+    // Actualizar conjuntos a partir de la lista para garantizar unicidad
+    nombresVeterinarios.addAll(veterinarios.map { it.nombre })
+    especialidadesVeterinarios.addAll(veterinarios.map { it.especialidad })
 
     // Paso 3: Preguntar número de mascotas primero para el descuento
     var numeroMascotas: Int
@@ -36,50 +50,147 @@ fun main() {
     }
 
     // Registrar dueño (uno solo)
-    val dueño = registrarDueño()
+    val dueno = registrarDueno()
 
-    // Paso 4: Verificación de disponibilidad
-    var disponible = false
-    var fecha = ""
-    var hora = ""
-    while (!disponible) {
-        val (f, h) = solicitarFechaHora()
-        fecha = f
-        hora = h
-        disponible = verificarDisponibilidad(fecha, hora)
-        if (!disponible) {
-            println("El veterinario no está disponible en $fecha a las $hora.")
-            println("Días disponibles: Lunes a sabado.")
-            println("Horario disponible: 08:00 a 16:00.")
-            var respuesta: String
-            while (true) {
-                println("¿Desea intentar agendar la consulta con una nueva fecha y hora? (s/n):")
-                val input = readLine()?.lowercase() ?: ""
-                if (input == "s" || input == "n") {
-                    respuesta = input
-                    break
-                } else {
-                    println("Caracter invalido. Solo se permiten 's' o 'n'.")
-                }
+    // Crear consulta(s) y asignar dueños/mascotas
+    var idCounter = consultas.size + 1
+    mascotas.forEach { m ->
+        val c = Consulta(idCounter++, "Consulta general - ${m.nombre}", costoFinal)
+        // Asignar la misma instancia del dueño registrada
+        c.dueno = dueno
+        c.mascota = m
+        consultas.add(c)
+    }
+
+    // Paso 4: Verificación de disponibilidad y asignación de veterinario simple
+    consultas.filter { it.estado == "Pendiente" }.forEach { c ->
+        var asignada = false
+        while (!asignada) {
+            val (fecha, hora) = solicitarFechaHora()
+            // Verificar disponibilidad general de la clínica (día y horario)
+            if (!verificarDisponibilidad(fecha, hora)) {
+                println("Horario no disponible para la fecha/hora solicitada: $fecha $hora. Intente otra vez.")
+                continue
             }
-            if (respuesta != "s") {
-                exitProcess(0)
+            val vet = encontrarVeterinarioDisponible(fecha, hora)
+            if (vet != null) {
+                c.fecha = fecha
+                c.hora = hora
+                vet.asignarConsulta(c)
+                registrarConsulta(fecha, hora)
+                agendaPorVeterinario.getOrPut(vet.nombre) { mutableListOf() }.add(c)
+                println("Consulta ${c.idConsulta} asignada a ${vet.nombre} en $fecha $hora")
+                asignada = true
+            } else {
+                println("No hay veterinarios disponibles en $fecha $hora. Intente otra vez.")
+                var respuesta: String
+                while (true) {
+                    println("¿Desea intentar con otra fecha/hora? (s/n):")
+                    val input = readLine()?.lowercase() ?: ""
+                    if (input == "s" || input == "n") {
+                        respuesta = input
+                        break
+                    } else {
+                        println("Caracter invalido. Solo se permiten 's' o 'n'.")
+                    }
+                }
+                if (respuesta != "s") {
+                    break
+                }
             }
         }
     }
-    registrarConsulta(fecha, hora)
-    println("Consulta registrada exitosamente.")
 
-    // Crear consulta
-    val consulta = Consulta(
-        idConsulta = 1, // Simulado, en producción usa un generador único
-        descripcion = "Consulta general",
-        costoConsulta = costoFinal,
-        estado = "Pendiente"
-    )
+    // Resumen final
+    generarResumen(dueno, mascotas)
 
-    // Paso 6: Resumen
-    mostrarResumen(dueño, mascotas, consulta)
+    // Informe de todas las consultas
+    generarInformeConsultas()
+
+    // Enviar recordatorios (simulado)
+    enviarRecordatorios()
+}
+
+fun enviarRecordatorios() {
+    println("\n--- Enviando recordatorios ---")
+    // Recordatorios de citas programadas
+    consultas.filter { it.estado == "Pendiente" && it.fecha != null && it.hora != null }.forEach { c ->
+        val email = c.dueno?.email
+        if (email != null && Validaciones.validarEmail(email)) {
+            println("[MAIL] Recordatorio de cita enviado a $email: Consulta ${c.idConsulta} el ${c.fecha} ${c.hora}")
+        } else {
+            println("[SKIP] Email inválido para la consulta ${c.idConsulta}, no se envió recordatorio.")
+        }
+    }
+
+    // Recordatorios de vacunación próximos (en 30 días)
+    val hoy = LocalDate.now()
+    consultas.forEach { c ->
+        val m = c.mascota ?: return@forEach
+        val d = c.dueno
+        val prox = m.calcularProximaVacuna()
+        if (prox != null) {
+            try {
+                val dias = java.time.temporal.ChronoUnit.DAYS.between(hoy, prox)
+                if (dias in 0..30) {
+                    val email = d?.email
+                    if (email != null && Validaciones.validarEmail(email)) {
+                        println("[MAIL] Recordatorio de vacunación enviado a $email: Mascota ${m.nombre} tiene vacunación el $prox")
+                    } else {
+                        println("[SKIP] Email inválido para vacunación de ${m.nombre}")
+                    }
+                }
+            } catch (_: Exception) {
+                // ignore parsing issues
+            }
+        }
+    }
+}
+
+fun validarEmailConDefault(email: String?): String {
+    if (email == null) return "correo@invalido.com"
+    val regex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
+    return if (regex.matches(email)) email else "correo@invalido.com"
+}
+
+fun calcularDosis(peso: Double, edad: Int): String {
+    // Ejemplo simple: dosis en mg según peso y edad
+    val factor = when {
+        peso < 5 -> 5
+        peso < 15 -> 10
+        else -> 20
+    }
+    val ajuste = if (edad < 1) 0.8 else 1.0
+    val dosis = factor * ajuste
+    return "${dosis}mg"
+}
+
+fun encontrarVeterinarioDisponible(fecha: String, hora: String): Veterinario? {
+    return veterinarios.find { vet -> vet.estaDisponible(hora, fecha) }
+}
+
+fun generarInformeConsultas() {
+    println("\n--- Informe de Consultas Registradas ---")
+    consultas.forEach { c ->
+        println(c.generarResumen())
+    }
+    val pendientes = consultas.filter { it.estado == "Pendiente" }
+    println("\nPendientes (${pendientes.size}):")
+    pendientes.forEach { println(it.generarResumen()) }
+}
+
+fun generarResumen(dueno: Dueno, mascotas: List<Mascota>) {
+    println("\n--- Resumen Final ---")
+    println("Datos del Dueno: ${dueno.mostrarInformacion()}")
+    mascotas.forEach { m ->
+        val prox = m.calcularProximaVacuna()?.toString() ?: "Sin registro"
+        val dosis = calcularDosis(m.peso, m.edad)
+        println("Mascota: ${m.mostrarInformacion()}, Proxima vacunacion: $prox, Tipo vacuna: ${m.tipoVacuna()}, Dosis recomendada: $dosis")
+    }
+
+    // Mostrar consultas del dueno
+    println("\nConsultas del dueno:")
+    consultas.filter { it.dueno?.nombre == dueno.nombre }.forEach { println(it.generarResumen()) }
 }
 
 fun registrarMascota(): Mascota {
@@ -130,13 +241,13 @@ fun registrarMascota(): Mascota {
     return Mascota(nombre, especie, edad, peso)
 }
 
-fun registrarDueño(): Dueño {
-    var nombreDueño: String
+fun registrarDueno(): Dueno {
+    var nombreDueno: String
     while (true) {
         println("Ingrese el nombre del dueño:")
         val input = readLine() ?: ""
         if (input.isNotEmpty() && input.all { it.isLetter() || it == ' ' }) {
-            nombreDueño = input
+            nombreDueno = input
             break
         } else {
             println("Caracter invalido. Solo se permiten letras y espacios.")
@@ -144,28 +255,19 @@ fun registrarDueño(): Dueño {
     }
     var telefono: String
     while (true) {
-        println("Ingrese el teléfono:")
+        println("Ingrese el telefono:")
         val input = readLine() ?: ""
-        if (input.length == 8 && input.all { it.isDigit() }) {
+        if (Validaciones.validarTelefono(input)) {
             telefono = input
             break
         } else {
-            println("Numero telefonico invalido. Debe tener exactamente 8 dígitos numéricos.")
+            println("Numero telefonico invalido. Debe tener exactamente 8 digitos numericos.")
         }
     }
-    var email: String
-    while (true) {
-        println("Ingrese el email:")
-        val input = readLine() ?: ""
-        val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
-        if (input.matches(emailRegex)) {
-            email = input
-            break
-        } else {
-            println("Email no valido. Ingrese un email válido (ej. usuario@dominio.com).")
-        }
-    }
-    return Dueño(nombreDueño, telefono, email)
+    println("Ingrese el email (opcional):")
+    val emailInput = readLine()
+    val email = validarEmailConDefault(emailInput)
+    return Dueno(nombreDueno, telefono, email)
 }
 
 fun calcularCostoConDescuento(costoBase: Double, numeroMascotas: Int): Double {
@@ -182,7 +284,7 @@ fun solicitarFechaHora(): Pair<String, String> {
             LocalDate.parse(input)
             fecha = input
             break
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             println("Fecha incorrecta. Ingrese una fecha válida en formato YYYY-MM-DD.")
         }
     }
@@ -194,7 +296,7 @@ fun solicitarFechaHora(): Pair<String, String> {
             LocalTime.parse(input)
             hora = input
             break
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             println("hora invalida. Ingrese una hora válida en formato HH:MM.")
         }
     }
@@ -214,21 +316,11 @@ fun verificarDisponibilidad(fecha: String, hora: String): Boolean {
 
         val ocupadas = agendaVeterinarios[fecha] ?: mutableListOf()
         hora !in ocupadas
-    } catch (e: Exception) {
+    } catch (_: Exception) {
         false // Fecha o hora inválida
     }
 }
 
 fun registrarConsulta(fecha: String, hora: String) {
     agendaVeterinarios.getOrPut(fecha) { mutableListOf() }.add(hora)
-}
-
-fun mostrarResumen(dueño: Dueño, mascotas: List<Mascota>, consulta: Consulta) {
-    println("\n--- Resumen de la Consulta ---")
-    println("Dueño: ${dueño.nombreDueño}, Teléfono: ${dueño.telefono}, Email: ${dueño.email}")
-    mascotas.forEachIndexed { index, mascota ->
-        println("Mascota ${index + 1}: ${mascota.nombre}, Especie: ${mascota.especie}")
-    }
-    println("Consulta: ${consulta.descripcion}, Costo final: ${consulta.costoConsulta}, Estado: ${consulta.estado}")
-    println("Consulta: agendada exitosamente")
 }
