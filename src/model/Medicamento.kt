@@ -20,4 +20,3 @@ class Medicamento(
 
     override fun toString(): String = "Medicamento(nombre='$nombre', dosis='$dosificacion', precio=$precio, stock=$stock, promo=$aplicaPromocion)"
 }
-
