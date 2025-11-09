@@ -9,6 +9,9 @@ import main.service.AgendaService
 import main.service.ReporteService
 import main.util.Parsers
 import main.util.ZipUtil
+import main.util.Const
+import main.util.Calculos
+import main.util.Input
 import java.nio.file.Paths
 
 val veterinarios = mutableListOf<Veterinario>()
@@ -19,55 +22,31 @@ val especialidadesVeterinarios: MutableSet<String> = mutableSetOf()
 
 fun main() {
     println("Bienvenido al sistema de la veterinaria.")
-
-    // Inicializar algunos veterinarios de ejemplo (nombre, telefono, especialidad, email)
-    veterinarios.add(Veterinario("Dr. Gonzalez", "22220001", "General", "gonzalez@vet.com"))
-    veterinarios.add(Veterinario("Dra. Perez", "22220002", "Dermatologia", "perez@vet.com"))
-
-    // Actualizar conjuntos a partir de la lista para garantizar unicidad
+    // Veterinarios iniciales inmutables base
+    val baseVets = listOf(
+        Veterinario("Dr. Gonzalez", "22220001", "General", "gonzalez@vet.com"),
+        Veterinario("Dra. Perez", "22220002", "Dermatologia", "perez@vet.com")
+    )
+    veterinarios.addAll(baseVets)
     nombresVeterinarios.addAll(veterinarios.map { it.nombre })
     especialidadesVeterinarios.addAll(veterinarios.map { it.especialidad })
-
-    // Inicializar servicios y repositorio
     val agendaRepo = AgendaRepository()
     val agendaService = AgendaService(agendaRepo, veterinarios)
-
-    // Paso 3: Preguntar número de mascotas primero para el descuento
-    var numeroMascotas: Int
-    while (true) {
-        println("Ingrese el número de mascotas que seran atendidas:")
-        val input = readLine()?.toIntOrNull()
-        if (input != null && input > 0) {
-            numeroMascotas = input
-            break
-        } else {
-            println("Caracter no valido. Por favor ingresar un numero valido.")
-        }
-    }
-    val costoBase = 5000.0 // Costo base por consulta
-    val costoFinal = calcularCostoConDescuento(costoBase, numeroMascotas)
-
-    // Paso 2: Entrada de datos para mascotas (repetir si hay más de una)
+    val numeroMascotas = Input.leerEnteroPositivo("Ingrese el número de mascotas que serán atendidas:")
+    val costoFinalUnitario = Calculos.costoConDescuento(Const.COSTO_BASE, numeroMascotas, Const.DESCUENTO_MULTI_MASCOTA)
     val mascotas = mutableListOf<Mascota>()
-    for (i in 1..numeroMascotas) {
-        println("Registrando mascota $i:")
+    repeat(numeroMascotas) { idx ->
+        println("Registrando mascota ${idx + 1}:")
         mascotas.add(registrarMascota())
     }
-
-    // Registrar dueño (uno solo)
     val dueno = registrarDueno()
-
-    // Crear consulta(s) y asignar dueños/mascotas
     var idCounter = consultas.size + 1
     mascotas.forEach { m ->
-        val c = Consulta(idCounter++, "Consulta general - ${m.nombre}", costoFinal)
-        // Asignar la misma instancia del dueño registrada
+        val c = Consulta(idCounter++, "Consulta general - ${m.nombre}", costoFinalUnitario)
         c.dueno = dueno
         c.mascota = m
         consultas.add(c)
     }
-
-    // Asignación usando AgendaService
     consultas.filter { it.estado == "Pendiente" }.forEach { c ->
         while (true) {
             val (fecha, hora) = solicitarFechaHoraConParsers()
@@ -80,16 +59,12 @@ fun main() {
                 println("Consulta ${c.idConsulta} asignada a ${c.veterinario!!.nombre} en $fecha $hora")
                 break
             } else {
-                println("No disponible $fecha $hora. ¿Intentar otra? (s/n):")
-                val resp = leerSN() ?: break
-                if (resp == 'n') break
+                if (!Input.leerOpcionSN("No disponible $fecha $hora. ¿Intentar otra? (s/n):")) break
             }
         }
     }
-
-    // Resumen profesional usando ReporteService
     println("\n--- Resumen Profesional ---")
-    val resumen = ReporteService.resumen(dueno, mascotas)
+    val resumen = ReporteService.resumen(dueno, mascotas, consultas)
     println(resumen)
     val ruta = ReporteService.exportar(dueno, mascotas)
     println("Resumen exportado en: $ruta")
@@ -100,11 +75,7 @@ fun main() {
     } catch (e: Exception) {
         println("No se pudo generar el ZIP: ${e.message}")
     }
-
-    // Informe de todas las consultas
     generarInformeConsultas()
-
-    // Enviar recordatorios (simulado)
     enviarRecordatorios()
 }
 
@@ -149,17 +120,44 @@ fun validarEmailConDefault(email: String?): String {
     return Validaciones.normalizarEmail(email)
 }
 
-fun calcularDosis(peso: Double, edad: Int): String {
-    // Ejemplo simple: dosis en mg según peso y edad
-    val factor = when {
-        peso < 5 -> 5
-        peso < 15 -> 10
-        else -> 20
-    }
-    val ajuste = if (edad < 1) 0.8 else 1.0
-    val dosis = factor * ajuste
-    return "${dosis}mg"
+fun registrarMascota(): Mascota {
+    val nombre = Input.leerTextoValidado(
+        "Ingrese el nombre de la mascota:",
+        { it.isNotBlank() && it.all { ch -> ch.isLetter() || ch == ' ' } },
+        "Nombre inválido. Solo letras y espacios."
+    )
+    val especie = Input.leerTextoValidado(
+        "Ingrese la especie (perro/gato):",
+        { it.lowercase() in Const.ESPECIES_VALIDAS },
+        "Especie no válida. Solo 'perro' o 'gato'."
+    ).lowercase()
+    val edad = Input.leerEnteroPositivo("Ingrese la edad (en años):")
+    val peso = Input.leerTextoValidado(
+        "Ingrese el peso (en kg):",
+        { it.toDoubleOrNull()?.let { v -> v > 0 } == true },
+        "Peso inválido. Debe ser número positivo."
+    ).toDouble()
+    return Mascota(nombre, especie, edad, peso)
 }
+
+fun registrarDueno(): Dueno {
+    val nombreDueno = Input.leerTextoValidado(
+        "Ingrese el nombre del dueño:",
+        { it.isNotBlank() && it.all { ch -> ch.isLetter() || ch == ' ' } },
+        "Nombre inválido. Solo letras y espacios."
+    )
+    val telefono = Input.leerTextoValidado(
+        "Ingrese el teléfono (8 dígitos):",
+        { Validaciones.validarTelefono(it) },
+        "Teléfono inválido. Debe tener exactamente 8 dígitos numéricos."
+    )
+    println("Ingrese el email (opcional):")
+    val emailInput = readLine()
+    val email = validarEmailConDefault(emailInput)
+    return Dueno(nombreDueno, telefono, email)
+}
+
+fun calcularCostoConDescuento(costoBase: Double, numeroMascotas: Int): Double = Calculos.costoConDescuento(costoBase, numeroMascotas, Const.DESCUENTO_MULTI_MASCOTA)
 
 fun generarInformeConsultas() {
     println("\n--- Informe de Consultas Registradas ---")
@@ -169,96 +167,6 @@ fun generarInformeConsultas() {
     val pendientes = consultas.filter { it.estado == "Pendiente" }
     println("\nPendientes (${pendientes.size}):")
     pendientes.forEach { println(it.generarResumen()) }
-}
-
-fun leerSN(): Char? {
-    while (true) {
-        val input = readLine()?.lowercase() ?: return null
-        if (input == "s" || input == "n") return input[0]
-        println("Caracter invalido. Solo 's' o 'n'.")
-    }
-}
-
-fun registrarMascota(): Mascota {
-    var nombre: String
-    while (true) {
-        println("Ingrese el nombre de la mascota:")
-        val input = readLine() ?: ""
-        if (input.isNotEmpty() && input.all { it.isLetter() || it == ' ' }) {
-            nombre = input
-            break
-        } else {
-            println("Nombre inválido. Solo se permiten letras y espacios.")
-        }
-    }
-    var especie: String
-    while (true) {
-        println("Ingrese la especie:")
-        val input = readLine()?.lowercase() ?: ""
-        if (input == "perro" || input == "gato") {
-            especie = input
-            break
-        } else {
-            println("Especie no valida. Solo se permiten 'perro' o 'gato'.")
-        }
-    }
-    var edad: Int
-    while (true) {
-        println("Ingrese la edad (en años):")
-        val input = readLine()?.toIntOrNull()
-        if (input != null && input > 0) {
-            edad = input
-            break
-        } else {
-            println("Caracter no valido. Por favor ingresar un numero valido.")
-        }
-    }
-    var peso: Double
-    while (true) {
-        println("Ingrese el peso (en kg):")
-        val input = readLine()?.toDoubleOrNull()
-        if (input != null && input > 0) {
-            peso = input
-            break
-        } else {
-            println("Caracter no valido. Por favor ingresar un numero valido.")
-        }
-    }
-    return Mascota(nombre, especie, edad, peso)
-}
-
-fun registrarDueno(): Dueno {
-    var nombreDueno: String
-    while (true) {
-        println("Ingrese el nombre del dueño:")
-        val input = readLine() ?: ""
-        if (input.isNotEmpty() && input.all { it.isLetter() || it == ' ' }) {
-            nombreDueno = input
-            break
-        } else {
-            println("Caracter invalido. Solo se permiten letras y espacios.")
-        }
-    }
-    var telefono: String
-    while (true) {
-        println("Ingrese el telefono:")
-        val input = readLine() ?: ""
-        if (Validaciones.validarTelefono(input)) {
-            telefono = input
-            break
-        } else {
-            println("Numero telefonico invalido. Debe tener exactamente 8 digitos numericos.")
-        }
-    }
-    println("Ingrese el email (opcional):")
-    val emailInput = readLine()
-    val email = validarEmailConDefault(emailInput)
-    return Dueno(nombreDueno, telefono, email)
-}
-
-fun calcularCostoConDescuento(costoBase: Double, numeroMascotas: Int): Double {
-    val descuento = if (numeroMascotas > 1) 0.15 else 0.0
-    return costoBase * (1 - descuento)
 }
 
 fun solicitarFechaHoraConParsers(): Pair<String, String> {
@@ -290,8 +198,8 @@ fun verificarReglasClinica(fecha: String, hora: String): Boolean {
         val date = LocalDate.parse(fecha)
         if (date.dayOfWeek == DayOfWeek.SUNDAY) return false
         val time = LocalTime.parse(hora)
-        val start = LocalTime.of(8, 0)
-        val end = LocalTime.of(16, 0)
+        val start = Const.HORARIO_APERTURA
+        val end = Const.HORARIO_CIERRE
         !time.isBefore(start) && !time.isAfter(end)
     } catch (_: Exception) { false }
 }
