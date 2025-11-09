@@ -22,10 +22,12 @@ object ReporteService {
         if (consultas.isNotEmpty()) {
             appendLine()
             appendLine("=== Consultas (${consultas.size}) ===")
-            val total = consultas.sumOf { it.calcularCostoFinal() }
+            val totalOriginal = consultas.sumOf { it.costoConsulta }
+            val totalFinal = consultas.sumOf { it.calcularCostoFinal() }
+            val descuentoAplicado = totalOriginal - totalFinal
             val pend = consultas.count { it.estado == "Pendiente" }
             val real = consultas.count { it.estado == "Realizada" }
-            appendLine("Totales: monto=$total | pendientes=$pend | realizadas=$real")
+            appendLine("Totales: bruto=$totalOriginal | descuento=$descuentoAplicado | neto=$totalFinal | pendientes=$pend | realizadas=$real")
             val porVet = consultas.groupBy { it.veterinario?.nombre ?: "Sin asignar" }
             porVet.forEach { (vet, lista) ->
                 appendLine(" * $vet: ${lista.size} consultas")
@@ -41,5 +43,14 @@ object ReporteService {
         val filePath = dirPath.resolve(nombreArchivo)
         Files.writeString(filePath, contenido)
         return filePath
+    }
+
+    fun informeConsultas(consultas: List<Consulta>): String = buildString {
+        appendLine("--- Informe de Consultas Registradas ---")
+        consultas.forEach { c -> appendLine(c.generarResumen()) }
+        val pendientes = consultas.filter { it.estado == "Pendiente" }
+        appendLine()
+        appendLine("Pendientes (${pendientes.size}):")
+        pendientes.forEach { appendLine(it.generarResumen()) }
     }
 }

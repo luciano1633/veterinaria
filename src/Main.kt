@@ -75,7 +75,7 @@ fun main() {
     } catch (e: Exception) {
         println("No se pudo generar el ZIP: ${e.message}")
     }
-    generarInformeConsultas()
+    println(ReporteService.informeConsultas(consultas))
     enviarRecordatorios()
 }
 
@@ -155,18 +155,6 @@ fun registrarDueno(): Dueno {
     val emailInput = readLine()
     val email = validarEmailConDefault(emailInput)
     return Dueno(nombreDueno, telefono, email)
-}
-
-fun calcularCostoConDescuento(costoBase: Double, numeroMascotas: Int): Double = Calculos.costoConDescuento(costoBase, numeroMascotas, Const.DESCUENTO_MULTI_MASCOTA)
-
-fun generarInformeConsultas() {
-    println("\n--- Informe de Consultas Registradas ---")
-    consultas.forEach { c ->
-        println(c.generarResumen())
-    }
-    val pendientes = consultas.filter { it.estado == "Pendiente" }
-    println("\nPendientes (${pendientes.size}):")
-    pendientes.forEach { println(it.generarResumen()) }
 }
 
 fun solicitarFechaHoraConParsers(): Pair<String, String> {
