@@ -23,9 +23,8 @@ val agendaPorVeterinario = mutableMapOf<String, MutableList<Consulta>>()
 val nombresVeterinarios: MutableSet<String> = mutableSetOf()
 val especialidadesVeterinarios: MutableSet<String> = mutableSetOf()
 
-fun main() {
-    println("Bienvenido al sistema de la veterinaria.")
-    // Veterinarios iniciales inmutables base
+// Funciones auxiliares para limpiar el flujo principal
+private fun inicializarVeterinarios() {
     val baseVets = listOf(
         Veterinario("Dr. Gonzalez", "22220001", "General", "gonzalez@vet.com"),
         Veterinario("Dra. Perez", "22220002", "Dermatologia", "perez@vet.com")
@@ -33,16 +32,16 @@ fun main() {
     veterinarios.addAll(baseVets)
     nombresVeterinarios.addAll(veterinarios.map { it.nombre })
     especialidadesVeterinarios.addAll(veterinarios.map { it.especialidad })
-    val agendaRepo = AgendaRepository()
-    val agendaService = AgendaService(agendaRepo, veterinarios)
-    val numeroMascotas = Input.leerEnteroPositivo("Ingrese el número de mascotas que serán atendidas:")
-    val costoFinalUnitario = Calculos.costoConDescuento(Const.COSTO_BASE, numeroMascotas, Const.DESCUENTO_MULTI_MASCOTA)
-    val mascotas = mutableListOf<Mascota>()
-    repeat(numeroMascotas) { idx ->
+}
+
+private fun registrarMascotas(numero: Int): List<Mascota> = buildList {
+    repeat(numero) { idx ->
         println("Registrando mascota ${idx + 1}:")
-        mascotas.add(registrarMascota())
+        add(registrarMascota())
     }
-    val dueno = registrarDueno()
+}
+
+private fun crearConsultasParaMascotas(mascotas: List<Mascota>, dueno: Dueno, costoFinalUnitario: Double) {
     var idCounter = consultas.size + 1
     mascotas.forEach { m ->
         val c = Consulta(idCounter++, "Consulta general - ${m.nombre}", costoFinalUnitario)
@@ -50,6 +49,9 @@ fun main() {
         c.mascota = m
         consultas.add(c)
     }
+}
+
+private fun asignarConsultasPendientes(agendaService: AgendaService) {
     consultas.filter { it.estado == "Pendiente" }.forEach { c ->
         while (true) {
             val (fecha, hora) = solicitarFechaHoraConParsers()
@@ -66,9 +68,53 @@ fun main() {
             }
         }
     }
+}
+
+private fun runAdvancedDemo() {
+    println("\n=== DEMO: Actividad avanzada ===")
+    val emailDemo = "demo@dominio.com"
+    println("Email '$emailDemo' válido? ${Validaciones.validarEmail(emailDemo)}")
+    val telRaw = "12345678"
+    val telFmt = Formatter.formatearTelefonoEstandar(telRaw)
+    println("Teléfono formateado: $telFmt")
+    Promos.inicioPromo = LocalDate.now().minusDays(5)
+    Promos.finPromo = LocalDate.now().plusDays(5)
+    val cliente = Cliente("Carla", "carla@mail.com", "+56 9 9999 9999")
+    val med1 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 10, aplicaPromocion = true)
+    val med2 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 20, aplicaPromocion = false)
+    val med3 = Medicamento("Ivermectina", "10mg", 4500.0, stock = 5, aplicaPromocion = true)
+    val setMedicamentos = mutableSetOf(med1, med2, med3) // hash/equals evita duplicado de med2
+    val p1 = Pedido(cliente, mutableListOf(ItemPedido(med1, 2)))
+    val p2 = Pedido(cliente, mutableListOf(ItemPedido(med3, 1)))
+    p1.recalcularTotal(); p2.recalcularTotal()
+    val p3 = p1 + p2
+    val (nombreCliente, correoCliente, telefonoCliente) = cliente
+    println("Cliente desestructurado: $nombreCliente | $correoCliente | $telefonoCliente")
+    val (cPedido, itemsPedido, totalPedido) = p3
+    println("Pedido desestructurado: cliente=${cPedido.nombre}, items=${itemsPedido.size}, total=$totalPedido")
+    println("Reflection Cliente:\n" + ReflectionUtil.describir(cliente))
+    println("Reflection Pedido:\n" + ReflectionUtil.describir(p3))
+    println("Ingrese cantidad de productos (1-100):")
+    val cantidadIngresada = readLine()?.toIntOrNull()
+    if (cantidadIngresada == null) println("Cantidad inválida (no es un número)")
+    else println(if (cantidadIngresada in 1..100) "Cantidad $cantidadIngresada dentro de rango (1-100)" else "Cantidad $cantidadIngresada fuera de rango (1-100)")
+    val promocionables = setMedicamentos.filter { it.aplicaPromocion }
+    println("Promocionables: ${promocionables.map { it.nombre }.distinct()}")
+}
+
+fun main() {
+    println("Bienvenido al sistema de la veterinaria.")
+    inicializarVeterinarios()
+    val agendaRepo = AgendaRepository()
+    val agendaService = AgendaService(agendaRepo, veterinarios)
+    val numeroMascotas = Input.leerEnteroPositivo("Ingrese el número de mascotas que serán atendidas:")
+    val costoFinalUnitario = Calculos.costoConDescuento(Const.COSTO_BASE, numeroMascotas, Const.DESCUENTO_MULTI_MASCOTA)
+    val mascotas = registrarMascotas(numeroMascotas)
+    val dueno = registrarDueno()
+    crearConsultasParaMascotas(mascotas, dueno, costoFinalUnitario)
+    asignarConsultasPendientes(agendaService)
     println("\n--- Resumen Profesional ---")
-    val resumen = ReporteService.resumen(dueno, mascotas, consultas)
-    println(resumen)
+    println(ReporteService.resumen(dueno, mascotas, consultas))
     val ruta = ReporteService.exportar(dueno, mascotas)
     println("Resumen exportado en: $ruta")
     try {
@@ -80,69 +126,7 @@ fun main() {
     }
     println(ReporteService.informeConsultas(consultas))
     enviarRecordatorios()
-
-    // =====================
-    // DEMO Actividad avanzada (pasos 1-6)
-    // =====================
-    println("\n=== DEMO: Actividad avanzada ===")
-    // Paso 1: Regex ya se usa en Validaciones.validarEmail
-    val emailDemo = "demo@dominio.com"
-    println("Email '$emailDemo' válido? ${Validaciones.validarEmail(emailDemo)}")
-
-    // Formateo de teléfono
-    val telRaw = "12345678" // 8 dígitos locales
-    val telFmt = Formatter.formatearTelefonoEstandar(telRaw)
-    println("Teléfono formateado: $telFmt")
-
-    // Ranges fecha promo
-    Promos.inicioPromo = LocalDate.now().minusDays(5)
-    Promos.finPromo = LocalDate.now().plusDays(5)
-
-    val cliente = Cliente("Carla", "carla@mail.com", "+56 9 9999 9999")
-    val med1 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 10, aplicaPromocion = true)
-    val med2 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 20, aplicaPromocion = false)
-    val med3 = Medicamento("Ivermectina", "10mg", 4500.0, stock = 5, aplicaPromocion = true)
-
-    // Paso 5: igualdad para evitar duplicados
-    val setMedicamentos = mutableSetOf<Medicamento>()
-    setMedicamentos += med1
-    setMedicamentos += med2 // igual a med1 (por nombre+dosis), no debería duplicar
-    setMedicamentos += med3
-    println("Medicamentos únicos por equals/hashCode: ${setMedicamentos.size}")
-
-    // Paso 3: operador + en Pedido
-    val p1 = Pedido(cliente, mutableListOf(ItemPedido(med1, 2)))
-    val p2 = Pedido(cliente, mutableListOf(ItemPedido(med3, 1)))
-    p1.recalcularTotal(); p2.recalcularTotal()
-    val p3 = p1 + p2 // combinado
-    println("Pedido combinado total: ${p3.total}")
-
-    // Paso 4: desestructuración
-    val (nombreCliente, correoCliente, telefonoCliente) = cliente
-    println("Cliente desestructurado: $nombreCliente | $correoCliente | $telefonoCliente")
-    val (cPedido, itemsPedido, totalPedido) = p3
-    println("Pedido desestructurado: cliente=${cPedido.nombre}, items=${itemsPedido.size}, total=$totalPedido")
-
-    // Paso 2: Reflection para describir clases
-    println("Reflection Cliente:\n" + ReflectionUtil.describir(cliente))
-    println("Reflection Pedido:\n" + ReflectionUtil.describir(p3))
-
-    // Paso 1: Rango de cantidad (entrada dinámica)
-    println("Ingrese cantidad de productos (1-100):")
-    val cantidadIngresada = readLine()?.toIntOrNull()
-    if (cantidadIngresada == null) {
-        println("Cantidad inválida (no es un número)")
-    } else {
-        if (cantidadIngresada in 1..100) {
-            println("Cantidad $cantidadIngresada dentro de rango (1-100)")
-        } else {
-            println("Cantidad $cantidadIngresada fuera de rango (1-100)")
-        }
-    }
-
-    // Paso 6: resumen de promocionables
-    val promocionables = setMedicamentos.filter { it.aplicaPromocion }
-    println("Promocionables: ${promocionables.map { it.nombre }.distinct()}")
+    runAdvancedDemo()
 }
 
 fun enviarRecordatorios() {

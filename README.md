@@ -57,6 +57,62 @@ Esto genera un archivo ZIP sin incluir `.git`, `.idea`, `build`, `out` ni el pro
 ### Alternativa RAR (manual)
 Si se requiere RAR, se puede usar una herramienta externa (WinRAR / 7-Zip) sobre el contenido del proyecto, o convertir el ZIP generado.
 
+## Actividad Avanzada: Pasos 1–6 Integrados
+Esta sección documenta la extensión de la aplicación para cubrir los puntos avanzados solicitados.
+
+### Paso 1: Regex y Ranges
+- Validación de correo electrónico: `Validaciones.validarEmail()` (regex estándar nombre@dominio.tld).
+- Formateo uniforme de teléfono: `Formatter.formatearTelefonoEstandar(digitos)` transforma entradas locales (8 dígitos) a formato internacional `+XX (XXX) XXX-XXXX`.
+- Rango de fechas de promoción: objeto `Promos` mantiene `inicioPromo..finPromo` y aplica `descuentoPromo(fecha)` si la fecha de un pedido cae dentro del rango.
+- Validación de cantidad dinámica (1–100): en `Main.kt` se solicita al usuario ingresar la cantidad y se verifica con `if (cantidadIngresada in 1..100)`.
+
+### Paso 2: Anotaciones y Reflection
+- Anotación personalizada `@Promocionable` aplicada a la propiedad `aplicaPromocion` en `Medicamento`.
+- Identificación dinámica de medicamentos promocionables filtrando `med.aplicaPromocion`.
+- Reflection: `ReflectionUtil.describir(obj)` lista campos y métodos de instancias (`Cliente`, `Pedido`) mostrando estructura de la clase en tiempo de ejecución.
+
+### Paso 3: Operator Overloading
+- Operador `+` sobrecargado en `Pedido` combina items de dos pedidos, suma cantidades y recalcula total con posible descuento por rango promocional.
+- Comparación de `Medicamento` por nombre y dosificación a través de `equals()` (permite usar `==` y evitar duplicados en `Set`).
+
+### Paso 4: Desestructuración
+- `Cliente` define `component1()`, `component2()`, `component3()` para extraer `nombre`, `email`, `telefono` directamente: `val (n,e,t) = cliente`.
+- `Pedido` define `component1()`, `component2()`, `component3()` para obtener `cliente`, `items`, `total`: `val (c, items, tot) = pedido`.
+
+### Paso 5: Igualdad y hashCode
+- `Cliente.equals()` y `hashCode()` basados en `nombre + email` (evita repetición de clientes).
+- `Medicamento.equals()` y `hashCode()` basados en `nombre + dosificación` (case-insensitive) para evitar duplicados en inventario.
+- Uso efectivo: al añadir medicamentos a `mutableSetOf<Medicamento>()` solo se conserva uno si comparten clave lógica.
+
+### Paso 6: Resumen y Ejecución Integral
+Al ejecutar `Main.kt`:
+1. Se gestionan veterinarios, mascotas y consultas (flujo base OOP semana previa).
+2. Se genera resumen profesional (`ReporteService.resumen`) y archivo `salida/resumen.txt` + ZIP.
+3. Se ejecuta la DEMO avanzada (impresiones en consola) mostrando:
+   - Validación de email y formateo de teléfono.
+   - Rango de promociones aplicado.
+   - Operador `+` combinando dos pedidos.
+   - Desestructuración de `Cliente` y `Pedido`.
+   - Reflection de `Cliente` y `Pedido`.
+   - Filtrado de promocionables vía anotación.
+   - Validación de rango de cantidad ingresada.
+4. Se imprime listado de medicamentos únicos por igualdad.
+
+### Ubicación de Código Clave
+- Regex / teléfono: `src/util/Formatter.kt`, `src/Utils.kt`.
+- Anotaciones: `src/annotations/Promocionable.kt`.
+- Reflection: `src/util/ReflectionUtil.kt`.
+- Overloading +: `src/model/Pedido.kt`.
+- Igualdad y desestructuración: `src/model/Cliente.kt`, `src/model/Medicamento.kt`, `src/model/Pedido.kt`.
+- Ranges promoción: `src/util/Promos.kt`.
+- DEMO integrada: `src/Main.kt` (sección "DEMO Actividad avanzada").
+
+### Ejecución Rápida de la DEMO
+Ejecutar `Main.kt` y seguir los prompts (número de mascotas, datos de cada mascota, datos de dueño, cantidad de productos en DEMO avanzada).
+
+### Pruebas Básicas
+`TestRunner.kt` incluye tests mínimos (Validaciones, Calculos, Parsers, AgendaService, ReporteService). Ejecutar ese archivo para ver resumen PASSED/FAILED.
+
 ## Próximos pasos
 - Añadir pruebas unitarias (JUnit) para `Validaciones`, `Parsers`, `AgendaService`, `ReporteService`.
 - Persistencia (JSON/DB) para consultas y usuarios.
