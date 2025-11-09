@@ -9,5 +9,9 @@ object Validaciones {
     fun validarTelefono(telefono: String): Boolean {
         return telefono.length == 8 && telefono.all { it.isDigit() }
     }
-}
 
+    // Nueva utilidad: centraliza la normalización de email opcional
+    fun normalizarEmail(email: String?, porDefecto: String = "correo@invalido.com"): String {
+        return if (email != null && validarEmail(email)) email else porDefecto
+    }
+}

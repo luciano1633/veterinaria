@@ -147,10 +147,9 @@ fun enviarRecordatorios() {
     }
 }
 
+// Se reemplaza por la función centralizada en Utils.kt
 fun validarEmailConDefault(email: String?): String {
-    if (email == null) return "correo@invalido.com"
-    val regex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
-    return if (regex.matches(email)) email else "correo@invalido.com"
+    return Validaciones.normalizarEmail(email)
 }
 
 fun calcularDosis(peso: Double, edad: Int): String {
