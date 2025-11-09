@@ -8,6 +8,8 @@ import main.repository.AgendaRepository
 import main.service.AgendaService
 import main.service.ReporteService
 import main.util.Parsers
+import main.util.ZipUtil
+import java.nio.file.Paths
 
 val veterinarios = mutableListOf<Veterinario>()
 val consultas = mutableListOf<Consulta>()
@@ -87,7 +89,17 @@ fun main() {
 
     // Resumen profesional usando ReporteService
     println("\n--- Resumen Profesional ---")
-    println(ReporteService.resumen(dueno, mascotas))
+    val resumen = ReporteService.resumen(dueno, mascotas)
+    println(resumen)
+    val ruta = ReporteService.exportar(dueno, mascotas)
+    println("Resumen exportado en: $ruta")
+    try {
+        val zipPath = Paths.get("salida", "resumen.zip")
+        ZipUtil.zipDir(Paths.get("salida"), zipPath)
+        println("Archivo ZIP generado en: $zipPath")
+    } catch (e: Exception) {
+        println("No se pudo generar el ZIP: ${e.message}")
+    }
 
     // Informe de todas las consultas
     generarInformeConsultas()

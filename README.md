@@ -4,72 +4,63 @@
 Aplicación de consola en Kotlin para gestionar consultas veterinarias. Permite registrar mascotas y dueños, calcular costos con descuentos, verificar disponibilidad, agendar consultas y enviar recordatorios.
 
 ## Arquitectura Actual (Refactor según retroalimentación)
-Se segmentó la lógica para mejorar mantenibilidad:
-- `model/` contiene entidades (POJOs/Kotlin classes).
-- `repository/AgendaRepository.kt` gestiona horarios ocupados (persistencia en memoria).
-- `service/AgendaService.kt` asigna consultas aplicando reglas de disponibilidad.
-- `service/ReporteService.kt` centraliza la generación de resúmenes profesionales (string builder).
-- `util/Parsers.kt` reduce uso de try/catch mediante `runCatching` para fecha/hora.
-- `Utils.kt` centraliza validaciones (email, teléfono, normalización).
-- `Main.kt` orquesta el flujo, delegando lógica de negocio a servicios y utilidades.
+- model/: entidades.
+- repository/AgendaRepository.kt: horarios ocupados.
+- service/AgendaService.kt: asignación de consultas.
+- service/ReporteService.kt: resumen profesional y exportación a archivo.
+- util/Parsers.kt: parseo seguro de fecha/hora (runCatching).
+- util/ZipUtil.kt: generación de ZIP del resumen.
+- Utils.kt: validaciones (email/teléfono).
+- Main.kt: orquestación del flujo.
 
 ## Cambios recientes
-- Centralización de validaciones en `Validaciones` (`validarEmail`, `validarTelefono`, `normalizarEmail`).
-- Refactor: se crean `AgendaRepository`, `AgendaService`, `Parsers`, `ReporteService` para elevar niveles de evaluación (funciones reutilizables, manejo de errores, resumen profesional, organización de código).
-- Uso ampliado de colecciones: `MutableList`, `MutableSet`, `MutableMap` y acceso seguro.
-- Resumen profesional único vía `ReporteService.resumen`.
+- Validaciones centralizadas: `Validaciones` (email, teléfono, normalización).
+- Servicios y repositorio: `AgendaService`, `AgendaRepository`.
+- Parsers: menos try/catch en Main mediante `runCatching`.
+- Reporte profesional y exportación: `ReporteService.resumen/exportar`.
+- Generación automática de ZIP: `ZipUtil.zipDir("salida", "salida/resumen.zip")` desde `Main.kt`.
 
-## Resultados esperados vs rúbrica del profesor
-Niveles apuntados tras el refactor:
-- Flujos de decisión (if/when) + colecciones y strings: CL.
-- Funciones reutilizables y colecciones (listOf, set, map): buscar elevar a CL (se añadieron servicios especializados y repositorio).
-- Clases representativas y encapsulación: CL (servicios y repositorio refuerzan el diseño).
-- Manejo de errores y null-safety (try-catch, runCatching, operadores seguros): mejorar a CL (introducción de Parsers reduce excepciones manuales y normaliza parseo).
-- Resumen profesional con formateo: subir a CL (uso de `buildString` en `ReporteService`).
-- Código limpio y organizado: subir de ML a L/CL (separación de responsabilidades y nombres consistentes).
+## Cumplimiento de la pauta (y mejora de niveles)
+- If/when + colecciones + strings: CL.
+- Funciones reutilizables + colecciones (listOf, set, map): L → fortalecidas con servicios/repositorio.
+- Clases representativas y encapsulación: CL.
+- try-catch + null-safety: L → reforzado con Parsers (`runCatching`) y operadores seguros.
+- Resumen claro con plantillas: L → reforzado con `ReporteService` y exportación.
+- Código limpio y organizado: ML → mejorado con separación por capas y nombres descriptivos.
+- Entrega del resumen en ZIP: ML → ahora automático en `salida/resumen.zip` al ejecutar.
 
-## Cumplimiento de la pauta (detalle)
-- Flujos de decisión: `if` y `when` en dosis, tipo de vacuna, validaciones y reglas de clínica.
-- Uso de colecciones y strings: listas para entidades, mapas para agenda, sets para unicidad, regex y plantillas `${}` en reportes.
-- Funciones reutilizables: métodos en servicios (`AgendaService.asignar`), repositorio (`ocupar/reservar`), utilidades (`Parsers`, `Validaciones`), cálculo (`calcularCostoConDescuento`, `calcularDosis`).
-- Organización: separación clara en paquetes (`model`, `repository`, `service`, `util`).
-- Clases representativas: `Usuario`, `Dueno`, `Veterinario`, `Mascota`, `Consulta`, más servicios y repositorio.
-- Manejo de errores: `runCatching` en `Parsers`, try/catch aislado, operadores seguros `?.` y Elvis `?:`.
-- Resumen profesional: `ReporteService.resumen` produce salida estructurada.
-- Código limpio: responsabilidades distribuidas, menor densidad en `Main.kt`.
+## Ejecución rápida
+- Ejecuta `Main.kt` en IntelliJ. Al finalizar:
+  - Se muestra el resumen en consola.
+  - Se guarda en `salida/resumen.txt`.
+  - Se genera `salida/resumen.zip` automáticamente.
 
-## Estructura del proyecto
-```
-veterinaria/
-├── src/
-│   ├── Main.kt
-│   ├── Utils.kt
-│   ├── model/
-│   │   ├── Usuario.kt
-│   │   ├── Dueño.kt (Dueno)
-│   │   ├── Veterinario.kt
-│   │   ├── Mascota.kt
-│   │   └── Consulta.kt
-│   ├── repository/
-│   │   └── AgendaRepository.kt
-│   ├── service/
-│   │   ├── AgendaService.kt
-│   │   └── ReporteService.kt
-│   └── util/
-│       └── Parsers.kt
-├── README.md
-└── veterinaria.iml
+## Entrega en formato ZIP (Punto 7)
+El criterio de evaluación que exige entregar el código en formato ZIP/RAR se cumple ahora con dos mecanismos:
+1. Generación automática del ZIP del resumen (`salida/resumen.zip`) al ejecutar `Main.kt`.
+2. Script de empaquetado completo del proyecto (`scripts/empacar_proyecto.ps1`) que crea `build/entrega_proyecto.zip` con el código fuente limpio.
+
+### Uso del script (PowerShell)
+Ejecutar desde PowerShell en la raíz del proyecto:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\empacar_proyecto.ps1
 ```
 
-## Cómo ejecutar
-- Abrir en IntelliJ IDEA y ejecutar `Main.kt`.
-- Seguir prompts: registrar mascotas, dueño, asignar horarios, ver resumen e informes.
+Opcionalmente indicar otra ruta destino:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\empacar_proyecto.ps1 -Destino "build/mi_entrega.zip"
+```
 
-## Próximos pasos sugeridos
-- Persistencia (Archivos JSON o BD ligera).
-- Tests unitarios (JUnit) para `Validaciones`, `AgendaService`, `Parsers`, `ReporteService`.
-- Manejo de estados avanzados (cancelada, reprogramada) en `Consulta`.
-- Exportar resumen a archivo (TXT/JSON) y empaquetar ZIP automático.
+Esto genera un archivo ZIP sin incluir `.git`, `.idea`, `build`, `out` ni el propio ZIP del resumen.
+
+### Alternativa RAR (manual)
+Si se requiere RAR, se puede usar una herramienta externa (WinRAR / 7-Zip) sobre el contenido del proyecto, o convertir el ZIP generado.
+
+## Próximos pasos
+- Añadir pruebas unitarias (JUnit) para `Validaciones`, `Parsers`, `AgendaService`, `ReporteService`.
+- Persistencia (JSON/DB) para consultas y usuarios.
+- Estados avanzados de consulta (cancelada, reprogramada) y validaciones extra.
 
 ## Licencia
 Proyecto educativo.
