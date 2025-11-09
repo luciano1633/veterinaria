@@ -12,9 +12,6 @@ import main.util.ZipUtil
 import main.util.Const
 import main.util.Calculos
 import main.util.Input
-import main.util.Formatter
-import main.util.Promos
-import main.util.ReflectionUtil
 import java.nio.file.Paths
 
 val veterinarios = mutableListOf<Veterinario>()
@@ -70,38 +67,6 @@ private fun asignarConsultasPendientes(agendaService: AgendaService) {
     }
 }
 
-private fun runAdvancedDemo() {
-    println("\n=== DEMO: Actividad avanzada ===")
-    val emailDemo = "demo@dominio.com"
-    println("Email '$emailDemo' válido? ${Validaciones.validarEmail(emailDemo)}")
-    val telRaw = "12345678"
-    val telFmt = Formatter.formatearTelefonoEstandar(telRaw)
-    println("Teléfono formateado: $telFmt")
-    Promos.inicioPromo = LocalDate.now().minusDays(5)
-    Promos.finPromo = LocalDate.now().plusDays(5)
-    val cliente = Cliente("Carla", "carla@mail.com", "+56 9 9999 9999")
-    val med1 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 10, aplicaPromocion = true)
-    val med2 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 20, aplicaPromocion = false)
-    val med3 = Medicamento("Ivermectina", "10mg", 4500.0, stock = 5, aplicaPromocion = true)
-    val setMedicamentos = mutableSetOf(med1, med2, med3) // hash/equals evita duplicado de med2
-    val p1 = Pedido(cliente, mutableListOf(ItemPedido(med1, 2)))
-    val p2 = Pedido(cliente, mutableListOf(ItemPedido(med3, 1)))
-    p1.recalcularTotal(); p2.recalcularTotal()
-    val p3 = p1 + p2
-    val (nombreCliente, correoCliente, telefonoCliente) = cliente
-    println("Cliente desestructurado: $nombreCliente | $correoCliente | $telefonoCliente")
-    val (cPedido, itemsPedido, totalPedido) = p3
-    println("Pedido desestructurado: cliente=${cPedido.nombre}, items=${itemsPedido.size}, total=$totalPedido")
-    println("Reflection Cliente:\n" + ReflectionUtil.describir(cliente))
-    println("Reflection Pedido:\n" + ReflectionUtil.describir(p3))
-    println("Ingrese cantidad de productos (1-100):")
-    val cantidadIngresada = readLine()?.toIntOrNull()
-    if (cantidadIngresada == null) println("Cantidad inválida (no es un número)")
-    else println(if (cantidadIngresada in 1..100) "Cantidad $cantidadIngresada dentro de rango (1-100)" else "Cantidad $cantidadIngresada fuera de rango (1-100)")
-    val promocionables = setMedicamentos.filter { it.aplicaPromocion }
-    println("Promocionables: ${promocionables.map { it.nombre }.distinct()}")
-}
-
 fun main() {
     println("Bienvenido al sistema de la veterinaria.")
     inicializarVeterinarios()
@@ -128,14 +93,13 @@ fun main() {
     enviarRecordatorios()
     // Empaquetar proyecto completo (entrega) en build/entrega_proyecto.zip
     try {
-        val root = Paths.get("") .toAbsolutePath().normalize()
+        val root = Paths.get("").toAbsolutePath().normalize()
         val zipEntrega = root.resolve("build").resolve("entrega_proyecto.zip")
         ZipUtil.zipProyecto(root, zipEntrega)
         println("Proyecto empaquetado en: $zipEntrega")
     } catch (e: Exception) {
         println("No se pudo empaquetar el proyecto: ${e.message}")
     }
-    runAdvancedDemo()
 }
 
 fun enviarRecordatorios() {
