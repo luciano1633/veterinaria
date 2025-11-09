@@ -126,6 +126,15 @@ fun main() {
     }
     println(ReporteService.informeConsultas(consultas))
     enviarRecordatorios()
+    // Empaquetar proyecto completo (entrega) en build/entrega_proyecto.zip
+    try {
+        val root = Paths.get("") .toAbsolutePath().normalize()
+        val zipEntrega = root.resolve("build").resolve("entrega_proyecto.zip")
+        ZipUtil.zipProyecto(root, zipEntrega)
+        println("Proyecto empaquetado en: $zipEntrega")
+    } catch (e: Exception) {
+        println("No se pudo empaquetar el proyecto: ${e.message}")
+    }
     runAdvancedDemo()
 }
 
