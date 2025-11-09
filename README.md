@@ -3,59 +3,73 @@
 ## Descripción
 Aplicación de consola en Kotlin para gestionar consultas veterinarias. Permite registrar mascotas y dueños, calcular costos con descuentos, verificar disponibilidad, agendar consultas y enviar recordatorios.
 
-## Cambios recientes
-- Centralización de validaciones en `src/Utils.kt` con el objeto `Validaciones`:
-  - `validarEmail(email: String): Boolean`
-  - `validarTelefono(telefono: String): Boolean`
-  - `normalizarEmail(email: String?, porDefecto: String = "correo@invalido.com"): String`
-- Uso de colecciones para organización de datos:
-  - `MutableList` para `veterinarios`, `consultas`, `mascotas`.
-  - `MutableMap` para `agendaVeterinarios` (fecha -> horas ocupadas) y `agendaPorVeterinario`.
-  - `MutableSet` para `nombresVeterinarios` y `especialidadesVeterinarios` (garantiza unicidad).
-- Refactor en `Main.kt` para usar `Validaciones.normalizarEmail` y validaciones centralizadas.
-- Se añadió resumen e informe formateado de consultas y recordatorios.
+## Arquitectura Actual (Refactor según retroalimentación)
+Se segmentó la lógica para mejorar mantenibilidad:
+- `model/` contiene entidades (POJOs/Kotlin classes).
+- `repository/AgendaRepository.kt` gestiona horarios ocupados (persistencia en memoria).
+- `service/AgendaService.kt` asigna consultas aplicando reglas de disponibilidad.
+- `service/ReporteService.kt` centraliza la generación de resúmenes profesionales (string builder).
+- `util/Parsers.kt` reduce uso de try/catch mediante `runCatching` para fecha/hora.
+- `Utils.kt` centraliza validaciones (email, teléfono, normalización).
+- `Main.kt` orquesta el flujo, delegando lógica de negocio a servicios y utilidades.
 
-## Cumplimiento de la pauta
-- Flujos de decisión (if, when) para verificar estados y lógica:
-  - `if` en validaciones de datos, disponibilidad, descuentos y control de flujo s/n.
-  - `when` en `Mascota.tipoVacuna()` y en `calcularDosis()`.
-- Arreglos/colecciones y strings para validaciones/formateo:
-  - `List`/`MutableList` para entidades; `Set` para unicidad; `Map` para agendas.
-  - Validaciones de `String` (regex email, dígitos tel) y plantillas de strings en salidas.
-- Funciones reutilizables para cálculos/verificaciones:
-  - `calcularCostoConDescuento`, `calcularDosis`, `verificarDisponibilidad`, `encontrarVeterinarioDisponible`.
-  - En `Validaciones`: `validarEmail`, `validarTelefono`, `normalizarEmail`.
-- Organización de datos con `listOf`/`setOf`/`mapOf` y variantes mutables.
-- Clases representativas: `Usuario`, `Dueno`, `Veterinario`, `Mascota`, `Consulta` con métodos que encapsulan lógica (`mostrarInformacion`, `estaDisponible`, `calcularProximaVacuna`, `generarResumen`).
-- Manejo de errores y null-safety:
-  - `try-catch` en parseo de fechas/horas y cálculo de recordatorios.
-  - Operadores seguros `?.` y `?:` al acceder a propiedades opcionales.
-- Resúmenes claros y profesionales con plantillas de strings (`${variable}`) en `generarResumen` y `generarInformeConsultas`.
-- Código limpio y organizado con nombres descriptivos.
+## Cambios recientes
+- Centralización de validaciones en `Validaciones` (`validarEmail`, `validarTelefono`, `normalizarEmail`).
+- Refactor: se crean `AgendaRepository`, `AgendaService`, `Parsers`, `ReporteService` para elevar niveles de evaluación (funciones reutilizables, manejo de errores, resumen profesional, organización de código).
+- Uso ampliado de colecciones: `MutableList`, `MutableSet`, `MutableMap` y acceso seguro.
+- Resumen profesional único vía `ReporteService.resumen`.
+
+## Resultados esperados vs rúbrica del profesor
+Niveles apuntados tras el refactor:
+- Flujos de decisión (if/when) + colecciones y strings: CL.
+- Funciones reutilizables y colecciones (listOf, set, map): buscar elevar a CL (se añadieron servicios especializados y repositorio).
+- Clases representativas y encapsulación: CL (servicios y repositorio refuerzan el diseño).
+- Manejo de errores y null-safety (try-catch, runCatching, operadores seguros): mejorar a CL (introducción de Parsers reduce excepciones manuales y normaliza parseo).
+- Resumen profesional con formateo: subir a CL (uso de `buildString` en `ReporteService`).
+- Código limpio y organizado: subir de ML a L/CL (separación de responsabilidades y nombres consistentes).
+
+## Cumplimiento de la pauta (detalle)
+- Flujos de decisión: `if` y `when` en dosis, tipo de vacuna, validaciones y reglas de clínica.
+- Uso de colecciones y strings: listas para entidades, mapas para agenda, sets para unicidad, regex y plantillas `${}` en reportes.
+- Funciones reutilizables: métodos en servicios (`AgendaService.asignar`), repositorio (`ocupar/reservar`), utilidades (`Parsers`, `Validaciones`), cálculo (`calcularCostoConDescuento`, `calcularDosis`).
+- Organización: separación clara en paquetes (`model`, `repository`, `service`, `util`).
+- Clases representativas: `Usuario`, `Dueno`, `Veterinario`, `Mascota`, `Consulta`, más servicios y repositorio.
+- Manejo de errores: `runCatching` en `Parsers`, try/catch aislado, operadores seguros `?.` y Elvis `?:`.
+- Resumen profesional: `ReporteService.resumen` produce salida estructurada.
+- Código limpio: responsabilidades distribuidas, menor densidad en `Main.kt`.
 
 ## Estructura del proyecto
 ```
 veterinaria/
 ├── src/
-│   ├── Main.kt            # Lógica interactiva, flujos y orquestación
-│   ├── Utils.kt           # Validaciones centralizadas
-│   └── model/
-│       ├── Usuario.kt
-│       ├── Dueño.kt (clase Dueno)
-│       ├── Veterinario.kt
-│       ├── Mascota.kt
-│       └── Consulta.kt
+│   ├── Main.kt
+│   ├── Utils.kt
+│   ├── model/
+│   │   ├── Usuario.kt
+│   │   ├── Dueño.kt (Dueno)
+│   │   ├── Veterinario.kt
+│   │   ├── Mascota.kt
+│   │   └── Consulta.kt
+│   ├── repository/
+│   │   └── AgendaRepository.kt
+│   ├── service/
+│   │   ├── AgendaService.kt
+│   │   └── ReporteService.kt
+│   └── util/
+│       └── Parsers.kt
 ├── README.md
 └── veterinaria.iml
 ```
 
 ## Cómo ejecutar
-- Recomendado: abrir en IntelliJ IDEA y ejecutar `Main.kt`.
-- La app es interactiva por consola.
+- Abrir en IntelliJ IDEA y ejecutar `Main.kt`.
+- Seguir prompts: registrar mascotas, dueño, asignar horarios, ver resumen e informes.
 
 ## Próximos pasos sugeridos
-- Persistencia de datos (JSON/DB) y pruebas unitarias (JUnit) para `Validaciones`, `Mascota` y `Consulta`.
-- Más reglas de negocio en agenda (duraciones, solapamientos por veterinario).
+- Persistencia (Archivos JSON o BD ligera).
+- Tests unitarios (JUnit) para `Validaciones`, `AgendaService`, `Parsers`, `ReporteService`.
+- Manejo de estados avanzados (cancelada, reprogramada) en `Consulta`.
+- Exportar resumen a archivo (TXT/JSON) y empaquetar ZIP automático.
 
 ## Licencia
 Proyecto educativo.

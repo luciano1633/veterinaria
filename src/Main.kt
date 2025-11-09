@@ -4,14 +4,14 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.DayOfWeek
 import main.model.*
+import main.repository.AgendaRepository
+import main.service.AgendaService
+import main.service.ReporteService
+import main.util.Parsers
 
-// Simulación de agenda de veterinarios (puedes expandir con una clase Veterinario)
-val agendaVeterinarios = mutableMapOf<String, MutableList<String>>() // Fecha -> Lista de horas ocupadas
 val veterinarios = mutableListOf<Veterinario>()
 val consultas = mutableListOf<Consulta>()
 val agendaPorVeterinario = mutableMapOf<String, MutableList<Consulta>>()
-
-// Conjuntos para garantizar unicidad (Set): nombres y especialidades de veterinarios
 val nombresVeterinarios: MutableSet<String> = mutableSetOf()
 val especialidadesVeterinarios: MutableSet<String> = mutableSetOf()
 
@@ -25,6 +25,10 @@ fun main() {
     // Actualizar conjuntos a partir de la lista para garantizar unicidad
     nombresVeterinarios.addAll(veterinarios.map { it.nombre })
     especialidadesVeterinarios.addAll(veterinarios.map { it.especialidad })
+
+    // Inicializar servicios y repositorio
+    val agendaRepo = AgendaRepository()
+    val agendaService = AgendaService(agendaRepo, veterinarios)
 
     // Paso 3: Preguntar número de mascotas primero para el descuento
     var numeroMascotas: Int
@@ -45,8 +49,7 @@ fun main() {
     val mascotas = mutableListOf<Mascota>()
     for (i in 1..numeroMascotas) {
         println("Registrando mascota $i:")
-        val mascota = registrarMascota()
-        mascotas.add(mascota)
+        mascotas.add(registrarMascota())
     }
 
     // Registrar dueño (uno solo)
@@ -62,47 +65,29 @@ fun main() {
         consultas.add(c)
     }
 
-    // Paso 4: Verificación de disponibilidad y asignación de veterinario simple
+    // Asignación usando AgendaService
     consultas.filter { it.estado == "Pendiente" }.forEach { c ->
-        var asignada = false
-        while (!asignada) {
-            val (fecha, hora) = solicitarFechaHora()
-            // Verificar disponibilidad general de la clínica (día y horario)
-            if (!verificarDisponibilidad(fecha, hora)) {
-                println("Horario no disponible para la fecha/hora solicitada: $fecha $hora. Intente otra vez.")
+        while (true) {
+            val (fecha, hora) = solicitarFechaHoraConParsers()
+            if (!verificarReglasClinica(fecha, hora)) {
+                println("Horario fuera de reglas de la clínica o inválido: $fecha $hora")
                 continue
             }
-            val vet = encontrarVeterinarioDisponible(fecha, hora)
-            if (vet != null) {
-                c.fecha = fecha
-                c.hora = hora
-                vet.asignarConsulta(c)
-                registrarConsulta(fecha, hora)
-                agendaPorVeterinario.getOrPut(vet.nombre) { mutableListOf() }.add(c)
-                println("Consulta ${c.idConsulta} asignada a ${vet.nombre} en $fecha $hora")
-                asignada = true
+            if (agendaService.asignar(c, fecha, hora)) {
+                agendaPorVeterinario.getOrPut(c.veterinario!!.nombre) { mutableListOf() }.add(c)
+                println("Consulta ${c.idConsulta} asignada a ${c.veterinario!!.nombre} en $fecha $hora")
+                break
             } else {
-                println("No hay veterinarios disponibles en $fecha $hora. Intente otra vez.")
-                var respuesta: String
-                while (true) {
-                    println("¿Desea intentar con otra fecha/hora? (s/n):")
-                    val input = readLine()?.lowercase() ?: ""
-                    if (input == "s" || input == "n") {
-                        respuesta = input
-                        break
-                    } else {
-                        println("Caracter invalido. Solo se permiten 's' o 'n'.")
-                    }
-                }
-                if (respuesta != "s") {
-                    break
-                }
+                println("No disponible $fecha $hora. ¿Intentar otra? (s/n):")
+                val resp = leerSN() ?: break
+                if (resp == 'n') break
             }
         }
     }
 
-    // Resumen final
-    generarResumen(dueno, mascotas)
+    // Resumen profesional usando ReporteService
+    println("\n--- Resumen Profesional ---")
+    println(ReporteService.resumen(dueno, mascotas))
 
     // Informe de todas las consultas
     generarInformeConsultas()
@@ -164,10 +149,6 @@ fun calcularDosis(peso: Double, edad: Int): String {
     return "${dosis}mg"
 }
 
-fun encontrarVeterinarioDisponible(fecha: String, hora: String): Veterinario? {
-    return veterinarios.find { vet -> vet.estaDisponible(hora, fecha) }
-}
-
 fun generarInformeConsultas() {
     println("\n--- Informe de Consultas Registradas ---")
     consultas.forEach { c ->
@@ -178,18 +159,12 @@ fun generarInformeConsultas() {
     pendientes.forEach { println(it.generarResumen()) }
 }
 
-fun generarResumen(dueno: Dueno, mascotas: List<Mascota>) {
-    println("\n--- Resumen Final ---")
-    println("Datos del Dueno: ${dueno.mostrarInformacion()}")
-    mascotas.forEach { m ->
-        val prox = m.calcularProximaVacuna()?.toString() ?: "Sin registro"
-        val dosis = calcularDosis(m.peso, m.edad)
-        println("Mascota: ${m.mostrarInformacion()}, Proxima vacunacion: $prox, Tipo vacuna: ${m.tipoVacuna()}, Dosis recomendada: $dosis")
+fun leerSN(): Char? {
+    while (true) {
+        val input = readLine()?.lowercase() ?: return null
+        if (input == "s" || input == "n") return input[0]
+        println("Caracter invalido. Solo 's' o 'n'.")
     }
-
-    // Mostrar consultas del dueno
-    println("\nConsultas del dueno:")
-    consultas.filter { it.dueno?.nombre == dueno.nombre }.forEach { println(it.generarResumen()) }
 }
 
 fun registrarMascota(): Mascota {
@@ -274,52 +249,37 @@ fun calcularCostoConDescuento(costoBase: Double, numeroMascotas: Int): Double {
     return costoBase * (1 - descuento)
 }
 
-fun solicitarFechaHora(): Pair<String, String> {
-    var fecha: String
-    while (true) {
-        println("Ingrese la fecha (YYYY-MM-DD):")
-        val input = readLine() ?: ""
-        try {
-            LocalDate.parse(input)
-            fecha = input
-            break
-        } catch (_: Exception) {
-            println("Fecha incorrecta. Ingrese una fecha válida en formato YYYY-MM-DD.")
-        }
-    }
-    var hora: String
-    while (true) {
-        println("Ingrese la hora (HH:MM):")
-        val input = readLine() ?: ""
-        try {
-            LocalTime.parse(input)
-            hora = input
-            break
-        } catch (_: Exception) {
-            println("hora invalida. Ingrese una hora válida en formato HH:MM.")
-        }
-    }
-    return Pair(fecha, hora)
+fun solicitarFechaHoraConParsers(): Pair<String, String> {
+    val fecha = solicitarFechaConParsers()
+    val hora = solicitarHoraConParsers()
+    return fecha to hora
 }
 
-fun verificarDisponibilidad(fecha: String, hora: String): Boolean {
+fun solicitarFechaConParsers(): String {
+    while (true) {
+        println("Ingrese la fecha (YYYY-MM-DD):")
+        val raw = readLine() ?: ""
+        val r = Parsers.fecha(raw)
+        if (r.isSuccess) return raw else println("Fecha inválida.")
+    }
+}
+
+fun solicitarHoraConParsers(): String {
+    while (true) {
+        println("Ingrese la hora (HH:MM):")
+        val raw = readLine() ?: ""
+        val r = Parsers.hora(raw)
+        if (r.isSuccess) return raw else println("Hora inválida.")
+    }
+}
+
+fun verificarReglasClinica(fecha: String, hora: String): Boolean {
     return try {
         val date = LocalDate.parse(fecha)
-        val dayOfWeek = date.dayOfWeek
-        if (dayOfWeek == DayOfWeek.SUNDAY) return false
-
+        if (date.dayOfWeek == DayOfWeek.SUNDAY) return false
         val time = LocalTime.parse(hora)
         val start = LocalTime.of(8, 0)
         val end = LocalTime.of(16, 0)
-        if (time.isBefore(start) || time.isAfter(end)) return false
-
-        val ocupadas = agendaVeterinarios[fecha] ?: mutableListOf()
-        hora !in ocupadas
-    } catch (_: Exception) {
-        false // Fecha o hora inválida
-    }
-}
-
-fun registrarConsulta(fecha: String, hora: String) {
-    agendaVeterinarios.getOrPut(fecha) { mutableListOf() }.add(hora)
+        !time.isBefore(start) && !time.isAfter(end)
+    } catch (_: Exception) { false }
 }
