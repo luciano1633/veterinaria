@@ -6,13 +6,11 @@ object Calculos {
         return if (aplica) base * (1 - descuento) else base
     }
     fun dosis(peso: Double, edad: Int): String {
-        val factor = when {
-            peso < 5 -> 5
-            peso < 15 -> 10
-            else -> 20
+        val dosisMg = when {
+            peso < 5 -> 4.0 // criterio: mascotas muy pequeñas, dosis fija
+            peso < 15 -> 10.0 * (if (edad < 1) 0.8 else 1.0)
+            else -> 20.0 * (if (edad < 1) 0.8 else 1.0)
         }
-        val ajuste = if (edad < 1) 0.8 else 1.0
-        return "${factor * ajuste}mg"
+        return "${dosisMg}mg"
     }
 }
-
