@@ -12,6 +12,9 @@ import main.util.ZipUtil
 import main.util.Const
 import main.util.Calculos
 import main.util.Input
+import main.util.Formatter
+import main.util.Promos
+import main.util.ReflectionUtil
 import java.nio.file.Paths
 
 val veterinarios = mutableListOf<Veterinario>()
@@ -77,6 +80,69 @@ fun main() {
     }
     println(ReporteService.informeConsultas(consultas))
     enviarRecordatorios()
+
+    // =====================
+    // DEMO Actividad avanzada (pasos 1-6)
+    // =====================
+    println("\n=== DEMO: Actividad avanzada ===")
+    // Paso 1: Regex ya se usa en Validaciones.validarEmail
+    val emailDemo = "demo@dominio.com"
+    println("Email '$emailDemo' válido? ${Validaciones.validarEmail(emailDemo)}")
+
+    // Formateo de teléfono
+    val telRaw = "12345678" // 8 dígitos locales
+    val telFmt = Formatter.formatearTelefonoEstandar(telRaw)
+    println("Teléfono formateado: $telFmt")
+
+    // Ranges fecha promo
+    Promos.inicioPromo = LocalDate.now().minusDays(5)
+    Promos.finPromo = LocalDate.now().plusDays(5)
+
+    val cliente = Cliente("Carla", "carla@mail.com", "+56 9 9999 9999")
+    val med1 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 10, aplicaPromocion = true)
+    val med2 = Medicamento("Amoxicilina", "250mg", 3000.0, stock = 20, aplicaPromocion = false)
+    val med3 = Medicamento("Ivermectina", "10mg", 4500.0, stock = 5, aplicaPromocion = true)
+
+    // Paso 5: igualdad para evitar duplicados
+    val setMedicamentos = mutableSetOf<Medicamento>()
+    setMedicamentos += med1
+    setMedicamentos += med2 // igual a med1 (por nombre+dosis), no debería duplicar
+    setMedicamentos += med3
+    println("Medicamentos únicos por equals/hashCode: ${setMedicamentos.size}")
+
+    // Paso 3: operador + en Pedido
+    val p1 = Pedido(cliente, mutableListOf(ItemPedido(med1, 2)))
+    val p2 = Pedido(cliente, mutableListOf(ItemPedido(med3, 1)))
+    p1.recalcularTotal(); p2.recalcularTotal()
+    val p3 = p1 + p2 // combinado
+    println("Pedido combinado total: ${p3.total}")
+
+    // Paso 4: desestructuración
+    val (nombreCliente, correoCliente, telefonoCliente) = cliente
+    println("Cliente desestructurado: $nombreCliente | $correoCliente | $telefonoCliente")
+    val (cPedido, itemsPedido, totalPedido) = p3
+    println("Pedido desestructurado: cliente=${cPedido.nombre}, items=${itemsPedido.size}, total=$totalPedido")
+
+    // Paso 2: Reflection para describir clases
+    println("Reflection Cliente:\n" + ReflectionUtil.describir(cliente))
+    println("Reflection Pedido:\n" + ReflectionUtil.describir(p3))
+
+    // Paso 1: Rango de cantidad (entrada dinámica)
+    println("Ingrese cantidad de productos (1-100):")
+    val cantidadIngresada = readLine()?.toIntOrNull()
+    if (cantidadIngresada == null) {
+        println("Cantidad inválida (no es un número)")
+    } else {
+        if (cantidadIngresada in 1..100) {
+            println("Cantidad $cantidadIngresada dentro de rango (1-100)")
+        } else {
+            println("Cantidad $cantidadIngresada fuera de rango (1-100)")
+        }
+    }
+
+    // Paso 6: resumen de promocionables
+    val promocionables = setMedicamentos.filter { it.aplicaPromocion }
+    println("Promocionables: ${promocionables.map { it.nombre }.distinct()}")
 }
 
 fun enviarRecordatorios() {
